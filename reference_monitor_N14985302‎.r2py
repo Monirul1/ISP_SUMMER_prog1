@@ -6,102 +6,99 @@ Assignment: Part I of Reference Monitor
 
 This security layer inadequately handles A/B storage for files in RepyV2.
 
-""" 
-TYPE="type"
-ARGS="args"
-RETURN="return"
-EXCP="exceptions"
-TARGET="target"
-FUNC="func"
-OBJC="objc"
+"""
 
-class ABFile():
-  def __init__(self,filename,create):
+TYPE = 'type'
+ARGS = 'args'
+RETURN = 'return'
+EXCP = 'exceptions'
+TARGET = 'target'
+FUNC = 'func'
+OBJC = 'objc'
+
+
+class ABFile:
+
+    def __init__(self, filename, create):
     # globals
-    mycontext['debug'] = False   
-
+        mycontext['debug'] = False
     # local (per object) reference to the underlying file
-    mycontext['file_lock'] = createlock()
-    mycontext['file_lock'].acquire(True)
-    self.Afn = filename+'.a'
-    self.Bfn = filename+'.b'
+        mycontext['file_lock'] = createlock()
+        mycontext['file_lock'].acquire(True)
+        self.Afn = filename + '.a'
+        self.Bfn = filename + '.b'
 
     # make the files and add 'SE' to the readat file...
-    if create:
-      
-      if self.Afn in listfiles() and self.Bfn in listfiles():
-        self.Afile = openfile(self.Afn,False)
-        self.Bfile = openfile(self.Bfn,False)
 
-      else:
-        self.Afile = openfile(self.Afn,create)
-        self.Bfile = openfile(self.Bfn,create)
-        self.Afile.writeat('SE',0)
-        self.Bfile.writeat('SE',0)
+        if create:
+            if self.Afn in listfiles() and self.Bfn in listfiles():
+                self.Afile = openfile(self.Afn, False)
+                self.Bfile = openfile(self.Bfn, False)
+            else:
+                self.Afile = openfile(self.Afn, create)
+                self.Bfile = openfile(self.Bfn, create)
+                self.Afile.writeat('SE', 0)
+                self.Bfile.writeat('SE', 0)
+        else:
 
-    else:
-      self.Bfile = openfile(self.Bfn, True)			
-      self.Afile = openfile(self.Afn, False)		
-      
-    mycontext['Lock']= createlock()
+            self.Bfile = openfile(self.Bfn, True)
+            self.Afile = openfile(self.Afn, False)
 
-  def writeat(self,data,offset):
+        mycontext['Lock'] = createlock()
+
+    def writeat(self, data, offset):
     # Write the requested data to the B file using the sandbox's writeat call
-    mycontext['Lock'].acquire(True)				
-    try:											            
-      self.Bfile.writeat(data,offset)
-      mycontext['Lock'].release()				
-    except:					
-      pass
+        mycontext['Lock'].acquire(True)
+        try:
+            self.Bfile.writeat(data, offset)
+            mycontext['Lock'].release()
+        except:
+            pass
 
-  def readat(self,bytes,offset):
+    def readat(self, bytes, offset):
     # Read from the A file using the sandbox's readat...
-    mycontext['Lock'].acquire(True)
-    try:
-      mycontext['Lock'].release()   
-      return self.Afile.readat(bytes,offset)
-    except:
-      mycontext['Lock'].release()        
-      pass
+        mycontext['Lock'].acquire(True)
+        try:
+            mycontext['Lock'].release()
+            return self.Afile.readat(bytes, offset)
+        except:
+            mycontext['Lock'].release()
+            pass
 
-  def close(self):
-    mycontext['Lock'].acquire(True)
-    b_data = self.Bfile.readat(None,0)
-    check_validity = self.isValid(b_data)
-    mycontext['Lock'].release()
+    def close(self):
+        mycontext['Lock'].acquire(True)
+        b_data = self.Bfile.readat(None, 0)
+        a_data = self.Afile.readat(None, 0)
+        mycontext['Lock'].release()
+    
+        check_validity_b = self.isValid(b_data)
+        check_validity_a = self.isValid(a_data)
 
-    try:
-      if check_validity:
-          self.Afile.writeat(b_data,0)
-      #discard B file
-      self.Bfile.close()
-      removefile(self.Bfn)
-      self.Afile = openfile(self.Afn, True)		
-      self.Afile.writeat(content, 0)			
+        if check_validity_b and check_validity_a:
+            self.Afile.writeat(b_data, 0)
+        else:
+            self.Bfile.writeat(a_data, 0)
 
-    except:
-      pass
+        self.Afile.close()
+        self.Bfile.close()
 
-    if self.isValid(self.Afile.readat(None,0)):
-      self.Afile.close()
+    def isValid(self, b):
+        char_start = 'S'
+        char_end = 'E'
+        if b.startswith(char_start) and b.endswith(char_end):
+            return True
+        else:
+            return False
+        return 0
 
-  def isValid(self,b):
-    char_start = 'S'
-    char_end = 'E'
-    if b.startswith(char_start) and b.endswith(char_end):
-      return True;
-    else:
-      return False;
-    return 0;    
-  						
 def ABopenfile(filename, create):
-  filename = filename.lower()
-  file_list = list(filename)
-  filename = '' 
-  for i in file_list: 
-    if(i>='a' and i <='z') or (i>='0' and i <= '9') or (i == '.'):
-      filename = filename+i
-  return ABFile(filename,create)
+    filename = filename.lower()
+    file_list = list(filename)
+    filename = ''
+    for i in file_list:
+        if i >= 'a' and i <= 'z' or i >= '0' and i <= '9' or i == '.':
+            filename = filename + i
+    return ABFile(filename, create)
 
 # The code here sets up type checking and variable hiding for you.  You
 # should not need to change anything below here.
